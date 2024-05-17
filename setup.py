@@ -10,7 +10,6 @@ setup(
     entry_points={
         "console_scripts": [
             "APTB=APT.scripts.APTB:main",
-            "APT=APT.scripts.APT:main",
         ]
     },
     python_requires=">=3.7",

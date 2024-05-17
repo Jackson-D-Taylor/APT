@@ -474,6 +474,7 @@ def APTB_argument_parse(parser, argv):
 
 
 def main():
+    start_time = time.monotonic()
 
     parser = argparse.ArgumentParser(
         description="PINT tool for agorithmically timing binary pulsars."
@@ -579,6 +580,7 @@ def main():
                         maxiter_while,
                         time.monotonic(),
                         solution_trees[-1],
+                        start_time,
                     ),
                 )
             )
@@ -626,6 +628,7 @@ def main():
                     maxiter_while,
                     mask_start_time,
                     solution_tree,
+                    start_time,
                 )
                 if result == "success" and not args.try_all_masks:
                     break

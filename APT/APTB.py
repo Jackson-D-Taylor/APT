@@ -1522,6 +1522,7 @@ def main_for_loop(
     maxiter_while,
     for_loop_start,
     solution_tree,
+    start_time,
 ):
 
     # starting_cluster = starting_cluster_list[mask_number]
