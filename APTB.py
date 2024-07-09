@@ -337,8 +337,7 @@ class CustomTree(treelib.Tree):
         # print(f"d0 = {d0}")
 
         W = [
-            r1_max**d if d <= d0 else r1_max**d0 * r2 ** (d - d0)
-            for d in range(D + 1)
+            r1_max**d if d <= d0 else r1_max**d0 * r2 ** (d - d0) for d in range(D + 1)
         ]
 
         ### TODO figure out what to do with these
@@ -393,6 +392,7 @@ class NodeData:
             self.A1_validator,
             self.RAJ_validator,
             self.DECJ_validator,
+            self.ECC_validator,
         ]
         self.validated = np.all([valid_func(args) for valid_func in validator_funcs])
         return self.validated
@@ -408,6 +408,17 @@ class NodeData:
 
         return return_value
 
+    def ECC_validator(self, args):
+        if args.binary_model is None or args.binary_model == "ELL1":
+            return True
+        ECC = self.m.ECC.value
+        return_value = ECC >= 0 and ECC <= 1
+
+        if not return_value:
+            log.warning(f"Nonsensical eccentricity! ({ECC=}))")
+
+        return return_value
+
     def F1_validator(self, args):
         if args.F1_sign_always is None:
             return True
@@ -418,7 +429,7 @@ class NodeData:
             return_value = F1 >= 0
 
         if not return_value:
-            log.warning(f"F1 wrong sign! ({F1=})")
+            log.warning(f"F1 is the wrong sign! ({F1=})")
 
         return return_value
 
