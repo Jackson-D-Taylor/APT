@@ -2135,11 +2135,13 @@ def main_for_loop(
     bad_mjds = []
 
     # mask_with_closest will be everything where the JUMPs between them and a neighbor have been removed
-    mask_with_closest = deepcopy(clusters == 0)
+    # mask_with_closest = deepcopy(clusters == 0) # this is the previous version that messes up span
+    mask_with_closest = deepcopy(clusters == -1)
     # mask_with_closest = deepcopy(mask)
 
     # unJUMPed_clusters = np.array([starting_cluster])
-    unJUMPed_clusters = np.array([0])
+    # unJUMPed_clusters = np.array([0]) # this is the previous version that messes up span
+    unJUMPed_clusters = np.array([])
     cluster_to_JUMPs = np.arange(1, cluster_max + 2)
     # tim_jump = deepcopy(clusters)
     cluster_distances = []
@@ -2182,6 +2184,8 @@ def main_for_loop(
                 cluster_max,
                 args.serial_depth,
             )
+
+            # mjd_closest_cluster = round(mjds_total[t.table["clusters"] == closest_cluster][0])
 
             print(
                 f"\n{colorama.Fore.LIGHTCYAN_EX}Removing the JUMP between clusters {closest_cluster} and {closest_cluster+adder}{colorama.Style.RESET_ALL}"
