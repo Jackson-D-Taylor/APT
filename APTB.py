@@ -1760,7 +1760,7 @@ def APTB_argument_parse(parser, argv):
     parser.add_argument(
         "--max_starts",
         help="maximum number of initial JUMP configurations",
-        type=float,
+        type=int,
         default=5,
     )
     parser.add_argument(
@@ -1919,7 +1919,7 @@ def APTB_argument_parse(parser, argv):
         # )
     # interpret strings as booleans
     if args.depth_pursue != np.inf:
-        raise NotImplementedError("depth_puruse")
+        raise NotImplementedError("depth_pursue")
     if args.F1_sign_always == "None":
         args.F1_sign_always = None
     if args.F1_sign_solution == "None":
