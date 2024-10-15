@@ -565,7 +565,6 @@ def JUMP_adder_begginning_cluster(
     # this adds the JUMPs based on the MJD range in which they apply
     m.add_component(PhaseJump(), validate=False)
     for c in range(cluster_max + 1):
-        print(f"DEBUG: on this line")
 
         mjds_cluster = mjds[clusters == c]
         # here we will use a range of MJDs
