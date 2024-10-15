@@ -565,8 +565,8 @@ def JUMP_adder_begginning_cluster(
     # this adds the JUMPs based on the MJD range in which they apply
     m.add_component(PhaseJump(), validate=False)
     for c in range(cluster_max + 1):
-        # if c == starting_cluster:
-        #     continue
+        print(f"DEBUG: on this line")
+
         mjds_cluster = mjds[clusters == c]
         # here we will use a range of MJDs
         par = parameter.maskParameter(
@@ -579,6 +579,7 @@ def JUMP_adder_begginning_cluster(
             ],
             units=u.s,
             frozen=True if c == 0 else False,
+            convert_tcb2tdb=False,  # this line is a hotfix
         )
         m.components["PhaseJump"].add_param(par, setup=True)
 
@@ -2762,7 +2763,7 @@ def main():
                     blueprint_string=True,
                 )
                 tree_graph_fig = APTB_extension.solution_tree_grapher(
-                    skeleton_tree, solution_tree.blueprint
+                    skeleton_tree, solution_tree.blueprint, pulsar_name
                 )
                 tree_graph_fig.savefig(
                     solution_tree.save_location / Path("solution_tree_schematic.jpg"),

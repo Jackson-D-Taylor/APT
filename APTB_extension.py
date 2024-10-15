@@ -161,7 +161,11 @@ def linear_interp(a, b, n):
     return x, y
 
 
-def solution_tree_grapher(tree, blueprint):
+def solution_tree_grapher(
+    tree,
+    blueprint,
+    pulsar_name,
+):
     font = {"weight": "bold", "size": 18}
     mpl.rc("font", **font)
     # tree = skeleton_tree_creator(blueprint)
@@ -219,7 +223,7 @@ def solution_tree_grapher(tree, blueprint):
     ax.set_xticks([])
     ax.set_yticklabels([i for i in range(tree.depth() + 1)])
     ax.set_ylabel("Depth")
-    ax.set_title(f"Solution Tree")
+    ax.set_title(f"Solution Tree for {pulsar_name}")
     cbar = fig.colorbar(im, ticks=[0, 1])
     cbar.ax.set_yticklabels(["First", "Last"])
 
