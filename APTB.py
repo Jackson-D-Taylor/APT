@@ -2615,7 +2615,7 @@ def main():
 
     os.chdir(data_path)
 
-    toas = pint.toa.get_TOAs(timfile)
+    toas = pint.toa.get_TOAs(timfile, planets=True)
     toas.table["clusters"] = toas.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjds_total = toas.get_mjds().value
 
