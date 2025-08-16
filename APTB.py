@@ -744,9 +744,16 @@ def JUMP_remover_total(
         starting_cluster_group = np.where(
             cluster_to_JUMPs == starting_cluster_jump_numb
         )[0]
+
+        """
+        If I make a feature allowing user-set permanent JUMPs, this is likely the easiest spot to implement this.
+        I could have a list of groups that should never be selected as group_left or group_right. If such a group
+        is ever selected as group_left (group_right), then APTB should pick the next adjacent cluster to the left
+        (right).
+        """
         group_left = starting_cluster_group.min()
         group_right = starting_cluster_group.max()
-
+        
         if group_left == 0:
             left = False
             dist_right = cluster_distances_dict[group_right]
