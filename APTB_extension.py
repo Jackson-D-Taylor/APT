@@ -22,6 +22,7 @@ from pathlib import Path
 import socket
 import APTB
 import treelib
+import matplotlib as mpl
 
 
 """
@@ -107,7 +108,9 @@ def do_Ftests_binary(m, t, f, f_params, span, Ftests, args):
     return m, t, f, f_params, span, Ftests, args
 
 
-def skeleton_tree_creator(blueprint, iteration_dict=None):
+def skeleton_tree_creator(
+    blueprint, iteration_dict=None, blueprint_string=False, format="tuple"
+):
     """
     This creates what the tree looks like, without any of the data attributes.
 
@@ -122,10 +125,9 @@ def skeleton_tree_creator(blueprint, iteration_dict=None):
     tree = treelib.Tree()
     tree.create_node("Root", "Root")
     U_counter = 0
-    if iteration_dict:
+    bp_string = ""
+    if iteration_dict and format == "tuple":
         for parent, child in blueprint:
-            # while tree.contains(child):
-            #     child += child[-1]
             if parent != "Root":
                 i_index = parent.index("i")
                 d_index = parent.index("d")
@@ -134,9 +136,96 @@ def skeleton_tree_creator(blueprint, iteration_dict=None):
             d_index = child.index("d")
             child = f"i{iteration_dict.get(child, f'U{(U_counter:=U_counter+1)}')}_{child[d_index:i_index-1]}"
             tree.create_node(child, child, parent=parent)
-    else:
+            if blueprint_string:
+                bp_string += f"{parent},{child};"
+    elif format == "tuple":
         for parent, child in blueprint:
-            # while tree.contains(child):
-            #     child += child[-1]
             tree.create_node(child, child, parent=parent)
+            if blueprint_string:
+                bp_string += f"{parent},{child};"
+    elif format == "string":
+        for parent_child in blueprint:
+            parent, child = parent_child.split(",")
+            tree.create_node(child, child, parent=parent)
+    else:
+        print(f"format = {format}")
+        raise Exception("Unsupported blueprint format")
+    if blueprint_string:
+        return tree, bp_string[:-1]
     return tree
+
+
+def linear_interp(a, b, n):
+    x = np.linspace(a[0], b[0], n)
+    y = np.linspace(a[1], b[1], n)
+    return x, y
+
+
+def solution_tree_grapher(
+    tree,
+    blueprint,
+    pulsar_name,
+):
+    font = {"weight": "bold", "size": 18}
+    mpl.rc("font", **font)
+    # tree = skeleton_tree_creator(blueprint)
+
+    node_data = {"Root": [0, 0, 0]}
+    l0 = 50
+    eps = 0.18
+    d = {0: 50, 1: 3, 2: l0}
+    depth_numbers = {0: 1}
+    for i in range(1, tree.depth() + 1):
+        nodes_at_depth = list(tree.filter_nodes(lambda x: tree.depth(x) == i))
+        depth_numbers[i] = len(nodes_at_depth)
+
+    for i, parent_child in enumerate(blueprint):
+        parent, child = parent_child
+        depth = tree.depth(parent)
+        l_default = l0 * eps ** (depth)
+        l = l_default
+        children_number = len(tree.children(parent))
+        parent_x, parent_y, children_assigned = node_data[parent]
+        node_data[parent][2] = children_assigned + 1
+        if children_number == 1:
+            w = 0
+        else:
+            w = 2 * l / (children_number - 1)
+
+        if child == "1":
+            print(child)
+            print(children_assigned)
+
+        p_left = (children_number - 1) / 2 * -w
+        child_x = parent_x + p_left + w * children_assigned
+        node_data[child] = [child_x, parent_y - 1, 0]
+
+    x_value = np.zeros(len(node_data))
+    y_value = np.zeros(len(node_data))
+    for i, node_list in enumerate(node_data.values()):
+        x_value[i], y_value[i], _ = node_list
+
+    x = []
+    y = []
+    for i, total in enumerate(blueprint):
+        parent, child = total
+        x_temp, y_temp = linear_interp(node_data[parent], node_data[child], 1000)
+        x.append(list(x_temp))
+        y.append(list(y_temp))
+
+    x = np.array(x).flatten()
+    y = np.array(y).flatten()
+
+    fig, ax = plt.subplots(figsize=(15, 12))
+    ax.plot(x_value, y_value, "ro", alpha=0.4, label="Nodes")
+    im = ax.scatter(x, y, c=np.linspace(0, 1, len(x)))
+    ax.set_yticks([-i for i in range(tree.depth() + 1)])
+    ax.set_xticks([])
+    ax.set_yticklabels([i for i in range(tree.depth() + 1)])
+    ax.set_ylabel("Depth")
+    ax.set_title(f"Solution Tree for {pulsar_name}")
+    cbar = fig.colorbar(im, ticks=[0, 1])
+    cbar.ax.set_yticklabels(["First", "Last"])
+
+    return fig
+    # fig.savefig(f"solution_tree.jpg", bbox_inches="tight")

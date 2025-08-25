@@ -1169,9 +1169,22 @@ def main(argv=None):
         type=float,
         default=10,
     )
+    parser.add_argument(
+        "--override_deprecation_warning",
+        help="Overrides the warning that APT is deprecated",
+        action=argparse.BooleanOptionalAction,
+        type=bool,
+        default=False,
+    )
 
     args = parser.parse_args(argv)
-    # interpret strings as booleans
+    if not args.override_deprecation_warning:
+        raise Exception(
+            "APT is deprecated. Use APTB instead---it also works for isolated pulsars (see the README.md). "
+            "To override this warning and run APT anyway (please don't), add the --override_deprecation_warning flag "
+            "after the .par and .tim files."
+        )
+        # interpret strings as booleans
     args.check_bad_points = args.check_bad_points.lower()[0] == "t"
     args.try_poly_extrap = args.try_poly_extrap.lower()[0] == "t"
     args.plot_poly_extrap = args.plot_poly_extrap.lower()[0] == "t"
