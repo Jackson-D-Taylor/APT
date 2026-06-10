@@ -729,6 +729,32 @@ def re_add_user_jumps(m, user_jumps):
         m.components["PhaseJump"].add_param(par, setup=True)
 
 
+def check_tim_file_for_jumps(timfile):
+    """
+    Scans the tim file for JUMP directives. If found, raises an error
+    instructing the user to place JUMPs in the par file instead.
+    """
+    with open(timfile, "r") as f:
+        for line_num, line in enumerate(f, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith("#") or stripped.startswith("C ") or stripped.startswith("c "):
+                continue
+            if stripped.upper() == "JUMP" or stripped.upper().startswith("JUMP "):
+                raise ValueError(
+                    f"\n\nJUMP directive found in tim file at line {line_num}:\n"
+                    f"  '{stripped}'\n\n"
+                    f"APTB does not support JUMPs in the tim file. If you need a "
+                    f"permanent JUMP (e.g., for a clock correction or backend change), "
+                    f"place it in the par file using MJD-keyed syntax:\n\n"
+                    f"  JUMP MJD <mjd_start> <mjd_end> <value> <0 (frozen) or 1 (unfrozen)> <error>\n\n"
+                    f"Do not add JUMPs as the first step of global phase connection, as"
+                    f"APTB handles this automatically. User JUMPs should only reflect "
+                    f"a known/expected physical offset (e.g., an instrumental discontinuity)."
+                )
+
+
 def JUMP_remover_decider(depth, starting_cluster, smallest_distance, serial_depth):
     """Decides which JUMP to remove
 
@@ -2753,6 +2779,8 @@ def main():
     data_path = Path(args.data_path)
 
     os.chdir(data_path)
+
+    check_tim_file_for_jumps(timfile)
 
     toas = pint.toa.get_TOAs(timfile, planets=True)
     toas.table["clusters"] = toas.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
