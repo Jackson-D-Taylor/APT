@@ -585,6 +585,150 @@ def JUMP_adder_begginning_cluster(
     return m, t
 
 
+def detect_user_jumps(m):
+    """
+    Detects and extracts user-specified JUMPs from a timing model before APTB
+    adds its own cluster JUMPs. Stores all information needed to perfectly
+    reconstruct each JUMP parameter.
+
+    Parameters
+    ----------
+    m : timing model
+
+    Returns
+    -------
+    list of dicts, one per user JUMP, or None if no user JUMPs exist
+    """
+    if "PhaseJump" not in m.components:
+        return None
+
+    jump_component = m.components["PhaseJump"]
+    user_jumps = []
+
+    for param_name in jump_component.params:
+        if not param_name.startswith("JUMP"):
+            continue
+        param = getattr(m, param_name)
+        user_jumps.append(
+            {
+                "key": param.key,
+                "key_value": list(param.key_value),
+                "value": param.value,
+                "uncertainty": param.uncertainty,
+                "frozen": param.frozen,
+                "units": param.units,
+                "convert_tcb2tdb": getattr(param, "convert_tcb2tdb", False),
+            }
+        )
+
+    if not user_jumps:
+        return None
+
+    return user_jumps
+
+
+def merge_edge_clusters(toas, mjds, user_jumps):
+    """
+    For each user JUMP with MJD range [mjd_a, mjd_b], merges the cluster pair
+    straddling mjd_a and the cluster pair straddling mjd_b. This ensures APTB
+    never encounters a phase-connection gap that a user JUMP sits across.
+
+    Interior clusters (entirely within [mjd_a, mjd_b]) are left unchanged.
+    If a boundary does not fall in any cluster gap, that edge is skipped silently.
+    Clusters are renumbered sequentially from 0 after all merges.
+
+    Parameters
+    ----------
+    toas : TOAs object (clusters modified in place)
+    mjds : np.ndarray of MJD values
+    user_jumps : list of dicts from detect_user_jumps, or None
+    """
+    if user_jumps is None:
+        return
+
+    clusters = np.array(toas.table["clusters"])
+
+    for jump in user_jumps:
+        if jump["key"] != "mjd":
+            continue
+
+        mjd_a, mjd_b = jump["key_value"]
+
+        # Left edge: merge the cluster pair whose gap contains mjd_a
+        cluster_max = int(np.max(clusters))
+        for c in range(cluster_max):
+            c_mjds = mjds[clusters == c]
+            c1_mjds = mjds[clusters == c + 1]
+            if len(c_mjds) == 0 or len(c1_mjds) == 0:
+                continue
+            if np.max(c_mjds) < mjd_a < np.min(c1_mjds):
+                clusters[clusters == c + 1] = c
+                break
+
+        # Right edge: merge the cluster pair whose gap contains mjd_b
+        cluster_max = int(np.max(clusters))
+        for c in range(cluster_max):
+            c_mjds = mjds[clusters == c]
+            c1_mjds = mjds[clusters == c + 1]
+            if len(c_mjds) == 0 or len(c1_mjds) == 0:
+                continue
+            if np.max(c_mjds) < mjd_b < np.min(c1_mjds):
+                clusters[clusters == c + 1] = c
+                break
+
+    # Renumber clusters sequentially from 0
+    unique_clusters = np.sort(np.unique(clusters))
+    cluster_map = {old: new for new, old in enumerate(unique_clusters)}
+    new_clusters = np.array([cluster_map[c] for c in clusters])
+    toas.table["clusters"] = new_clusters
+
+
+def remove_user_jumps(m, user_jumps):
+    """
+    Removes the PhaseJump component from the model before APTB adds its own
+    cluster JUMPs, ensuring JUMP numbering starts cleanly at 1.
+
+    Parameters
+    ----------
+    m : timing model
+    user_jumps : list of dicts from detect_user_jumps, or None
+    """
+    if user_jumps is None:
+        return
+
+    if "PhaseJump" in m.components:
+        m.remove_component("PhaseJump")
+
+
+def re_add_user_jumps(m, user_jumps):
+    """
+    Re-adds user JUMPs to the model after JUMP_adder_begginning_cluster has
+    populated the PhaseJump component with cluster JUMPs. User JUMPs land at
+    indices above cluster_max + 1, placing them permanently outside the
+    cluster_to_JUMPs range and invisible to JUMP_remover.
+
+    Parameters
+    ----------
+    m : timing model
+    user_jumps : list of dicts from detect_user_jumps, or None
+    """
+    if user_jumps is None:
+        return
+
+    for jump in user_jumps:
+        par = parameter.maskParameter(
+            "JUMP",
+            key=jump["key"],
+            value=jump["value"],
+            key_value=jump["key_value"],
+            units=jump["units"],
+            frozen=jump["frozen"],
+            convert_tcb2tdb=jump["convert_tcb2tdb"],
+        )
+        par.uncertainty = jump["uncertainty"]
+        m.components["PhaseJump"].add_param(par, setup=True)
+
+
 def JUMP_remover_decider(depth, starting_cluster, smallest_distance, serial_depth):
     """Decides which JUMP to remove
 
@@ -1126,7 +1270,8 @@ def Ftest_param(r_model, fitter, param_name, args):
         )
 
     # print the Ftest for the parameter and return the value of the Ftest
-    print("Ftest" + param_name + ":", Ftest_p)
+    # print("Ftest" + param_name + ":", Ftest_p)
+    log.info(f"Ftest {param_name}: {Ftest_p}")
     return Ftest_p, f_plus_p.model
 
 
@@ -1897,7 +2042,7 @@ def APTB_argument_parse(parser, argv):
         "--iteration_limit",
         help="The iteration at which APTB will stop, whether it found a solution or not.",
         type=int,
-        default=10000,  # TODO change this to 2000 (maybe 1000?) for any public version. Ter5aq takes 90 minutes for i = ~500 (10 seconds/iteration)
+        default=2000,  # Change to 10000 or more if seeking full potential . Ter5aq takes 90 minutes for i = ~500 (10 seconds/iteration)
     )
 
     args = parser.parse_args(argv)
@@ -1951,6 +2096,7 @@ def main_for_loop(
     maxiter_while,
     for_loop_start,
     solution_tree,
+    user_jumps=None,
 ):
     pint.logging.setup(level=args.min_log_level)
 
@@ -1981,6 +2127,7 @@ def main_for_loop(
     solution_tree.G = dict()
 
     m = mb.get_model(parfile)
+    remove_user_jumps(m, user_jumps)
     clusters = toas.table["clusters"]
     cluster_max = max_depth = np.max(clusters)
     m, t = JUMP_adder_begginning_cluster(
@@ -1992,6 +2139,7 @@ def main_for_loop(
         mjds_total,
         clusters,
     )
+    re_add_user_jumps(m, user_jumps)
     t.compute_pulse_numbers(m)
     args.binary_model = m.BINARY.value
     if args.binary_model is not None:
@@ -2145,6 +2293,7 @@ def main_for_loop(
 
     # this starts the solution tree
     solution_tree.current_parent_id = "Root"
+    explored_name = None 
     iteration = 0
     while iteration < args.iteration_limit:
         # the main while True loop of the algorithm:
@@ -2609,6 +2758,10 @@ def main():
     toas.table["clusters"] = toas.get_clusters(gap_limit=args.cluster_gap_limit * u.h)
     mjds_total = toas.get_mjds().value
 
+    # Detect user JUMPs and merge edge clusters before APTB's JUMP framework runs
+    user_jumps = detect_user_jumps(mb.get_model(parfile))
+    merge_edge_clusters(toas, mjds_total, user_jumps)
+
     # every TOA, should never be edited
     all_toas_beggining = deepcopy(toas)
     if args.pulsar_name is None:
@@ -2676,6 +2829,7 @@ def main():
                         maxiter_while,
                         time.monotonic(),
                         solution_trees[-1],
+                        user_jumps,
                     ),
                 )
             )
@@ -2723,6 +2877,7 @@ def main():
                     maxiter_while,
                     mask_start_time,
                     solution_tree,
+                    user_jumps,
                 )
                 if result == "success" and not args.try_all_masks:
                     break

@@ -34,11 +34,10 @@ file that will do the equivalent process. This also serves to prevent clutter in
 
 
 def set_binary_pars_lim(m, args):
-    if args.binary_model.lower() == "ell1" and args.EPS_lim is None:
+    if args.binary_model.lower() == "ell1":
         if args.EPS_lim == "inf":
             args.EPS_lim = np.inf
-        else:
-            args.EPS_lim = m.PB.value * 5
+        elif args.EPS_lim is None:
             args.EPS_lim = m.PB.value * 5
 
     elif args.binary_model.lower() == "bt":
