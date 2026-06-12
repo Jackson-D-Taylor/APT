@@ -52,6 +52,7 @@ class CustomTree(treelib.Tree):
         # will store this in a list so that when a branch is pruned
         # I can reconstruct the skeleton of the tree later
         self.blueprint = blueprint
+        self.explored_blueprint = explored_blueprint
         # The python docs recommends doing default empty lists like this
         if blueprint is None:
             self.blueprint = []
@@ -652,29 +653,18 @@ def merge_edge_clusters(toas, mjds, user_jumps):
         if jump["key"] != "mjd":
             continue
 
-        mjd_a, mjd_b = jump["key_value"]
-
-        # Left edge: merge the cluster pair whose gap contains mjd_a
-        cluster_max = int(np.max(clusters))
-        for c in range(cluster_max):
-            c_mjds = mjds[clusters == c]
-            c1_mjds = mjds[clusters == c + 1]
-            if len(c_mjds) == 0 or len(c1_mjds) == 0:
-                continue
-            if np.max(c_mjds) < mjd_a < np.min(c1_mjds):
-                clusters[clusters == c + 1] = c
-                break
-
-        # Right edge: merge the cluster pair whose gap contains mjd_b
-        cluster_max = int(np.max(clusters))
-        for c in range(cluster_max):
-            c_mjds = mjds[clusters == c]
-            c1_mjds = mjds[clusters == c + 1]
-            if len(c_mjds) == 0 or len(c1_mjds) == 0:
-                continue
-            if np.max(c_mjds) < mjd_b < np.min(c1_mjds):
-                clusters[clusters == c + 1] = c
-                break
+        # for each edge of the user JUMP, merge the cluster pair whose gap
+        # contains that boundary MJD
+        for boundary_mjd in jump["key_value"]:
+            cluster_max = int(np.max(clusters))
+            for c in range(cluster_max):
+                c_mjds = mjds[clusters == c]
+                c1_mjds = mjds[clusters == c + 1]
+                if len(c_mjds) == 0 or len(c1_mjds) == 0:
+                    continue
+                if np.max(c_mjds) < boundary_mjd < np.min(c1_mjds):
+                    clusters[clusters == c + 1] = c
+                    break
 
     # Renumber clusters sequentially from 0
     unique_clusters = np.sort(np.unique(clusters))
@@ -749,7 +739,7 @@ def check_tim_file_for_jumps(timfile):
                     f"permanent JUMP (e.g., for a clock correction or backend change), "
                     f"place it in the par file using MJD-keyed syntax:\n\n"
                     f"  JUMP MJD <mjd_start> <mjd_end> <value> <0 (frozen) or 1 (unfrozen)> <error>\n\n"
-                    f"Do not add JUMPs as the first step of global phase connection, as"
+                    f"Do not add JUMPs as the first step of global phase connection, as "
                     f"APTB handles this automatically. User JUMPs should only reflect "
                     f"a known/expected physical offset (e.g., an instrumental discontinuity)."
                 )
@@ -1087,10 +1077,11 @@ def save_state(
     show_plot=False,
     mask_with_closest=None,
     explored_name=None,
+    always_plot=False,
     **kwargs,
 ):
     """
-    Records the par and tim files of the current state and graphs a figure.
+    Records the par file of the current state and graphs a figure.
     It also checks if A1 is negative and if it is, it will ask the user if APTB
     should attempt to fix it. When other binary models are implemented, other
     types of checks for their respective models would need to be implemented here,
@@ -1109,6 +1100,7 @@ def save_state(
     save_plot : whether to save the plot or not (defaults to False)
     show_plot : whether to display the figure immediately after generation, iterupting the program (defaults to False)
     mask_with_closest : the mask with the non-JUMPed TOAs
+    always_plot : plot regardless of args.save_plots (used by the startup loop)
     kwargs : additional keyword arguments
 
     Returns
@@ -1121,13 +1113,11 @@ def save_state(
     if explored_name:
         iteration = explored_name
     m_copy = deepcopy(m)
-    t = deepcopy(t)
 
-    t.write_TOA_file(folder / Path(f"{pulsar_name}_{iteration}.tim"))
     with open(folder / Path(f"{pulsar_name}_{iteration}.par"), "w") as file:
         file.write(m_copy.as_parfile())
 
-    if save_plot or show_plot:
+    if (save_plot or show_plot) and (args.save_plots or always_plot):
         fig, ax = plt.subplots(figsize=(12, 7))
 
         fig, ax = plot_plain(
@@ -1980,6 +1970,13 @@ def APTB_argument_parse(parser, argv):
         default=True,
     )
     parser.add_argument(
+        "--save_plots",
+        help="Whether to save the residual plot at each iteration. The par file is always saved (if save_state is True),\n"
+        + "and the plots from the initial fit are always saved. Setting to True is useful for diagnosing issues but increases runtime.",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument(
         "--pre_save_state",
         help="Whether to save pre-fit and wrap_checker states. False by default because the ordinary states are usually sufficient.",
         action=argparse.BooleanOptionalAction,
@@ -2231,6 +2228,7 @@ def main_for_loop(
             folder=iterations_Path,
             iteration=f"start_right_after_phase_connector{start_iter}",
             save_plot=True,
+            always_plot=True,
         ):
             # try next mask
             return "continue"
@@ -2268,6 +2266,7 @@ def main_for_loop(
             iteration=f"start{start_iter}",
             save_plot=True,
             mask_with_closest=mask,
+            always_plot=True,
         ):
             return "continue"
 
