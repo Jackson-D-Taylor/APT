@@ -2005,6 +2005,7 @@ def APTB_argument_parse(parser, argv):
         "-pc",
         "--prune_condition",
         help="The reduced chisq above which to prune a branch.",
+        type=float,
         default=None,
     )
     parser.add_argument(
