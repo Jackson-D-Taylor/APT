@@ -2240,8 +2240,10 @@ def main_for_loop(
         # print("BEFORE:", f.get_fitparams())
         # changing maxiter here may have some effects
         print(
-            f.fit_toas(maxiter=4)
+            f.fit_toas(maxiter=8)
         )  # NOTE: need to investigate this ... this could make the base reduced chisq different than it should be
+
+        
 
         print("Best fit has reduced chi^2 of", f.resids.chi2_reduced)
         print("RMS in phase is", f.resids.phase_resids.std())
@@ -2255,6 +2257,8 @@ def main_for_loop(
 
         # update the model
         ########## m = f.model
+        print(f"fitting again")
+        f.fit_toas(maxiter=8)
 
         if not save_state(
             f,
