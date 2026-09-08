@@ -2082,7 +2082,7 @@ def main_for_loop(
 
         # update the model
         ########## m = f.model
-        print("Fitting again...")
+        print("Fitting again..."*1000)
         f.fit_toas(maxiter=4)
 
         if not save_state(
